@@ -1,0 +1,52 @@
+trigger:
+- main
+- feature/*
+
+pool: Default
+
+parameters:
+- name: env
+  displayName: Select Environment
+  type: string
+  default: dev
+  values: 
+    - dev
+    - prod
+- name: TFLint
+  displayName: execute TFLint ?
+  type: boolean
+  default: true
+
+variables:
+- ${{ if eq(parameters.env, 'dev')}}:
+  - group: VG-dev
+- ${{ if eq(parameters.env, 'prod')}}:
+  - group: VG-prod
+- name: wd
+  value: $(System.DefaultWorkingDirectory)landing_zone_practice/Environment/${{ parameters.env }}
+
+stages:
+  - stage: Validate
+    displayName: Terraform Init and Validate
+    jobs:
+    - job: InitandValidate
+      displayName: Terraform Init and Validate
+      steps:
+      - task: TerraformTask@5
+        displayName: Terraform Init
+        inputs:
+          provider: 'azurerm'
+          command: 'init'
+          workingDirectory: '$(wd)'
+          backendServiceArm: 'Practice_service_connection'
+          backendAzureRmResourceGroupName: '$(rg)'
+          backendAzureRmStorageAccountName: '$(sa)'
+          backendAzureRmContainerName: '$(container)'
+          backendAzureRmKey: '$(key)'
+      - task: TerraformTask@5
+        displayName: Terraform Vakidate
+        inputs:
+          provider: 'azurerm'
+          command: 'validate'
+          workingDirectory: '$(wd)'
+- ${{if eq(parameters.TFLint, true)}}:
