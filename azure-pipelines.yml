@@ -164,68 +164,42 @@ stages:
             
             Write-Host "tfsec scan completed successfully."
       - task: PowerShell@2
-        displayName: CheckOv
+        displayName: Checkov
         inputs:
           targetType: 'inline'
           script: |
             $ErrorActionPreference = "Stop"
             
-            # 1. Install Python using winget if missing
-            $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-            $pyCmd = Get-Command py -ErrorAction SilentlyContinue
+            # 1. Download and install Python 3.12
+            $installDir = Join-Path $env:AGENT_TEMPDIRECTORY "checkov-setup"
+            New-Item -ItemType Directory -Force -Path $installDir | Out-Null
             
-            if (-not $pythonCmd -and -not $pyCmd) {
-                Write-Host "Python not found. Installing Python..."
+            $installer = Join-Path $installDir "python-3.12-installer.exe"
+            $pythonUrl = "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe"
             
-                $winget = Get-Command winget -ErrorAction SilentlyContinue
-                if (-not $winget) {
-                    throw "WinGet is unavailable. Install Python 3 manually on the agent first."
-                }
+            Invoke-WebRequest -Uri $pythonUrl -OutFile $installer
             
-                winget install --exact --id Python.Python.3.12 `
-                    --scope user --silent `
-                    --accept-package-agreements `
-                    --accept-source-agreements
+            # Install Python for the current Windows user
+            $pythonHome = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312"
             
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Python installation failed."
-                }
+            $process = Start-Process -FilePath $installer `
+                -ArgumentList @(
+                    "/quiet",
+                    "InstallAllUsers=0",
+                    "TargetDir=$pythonHome",
+                    "PrependPath=1",
+                    "Include_pip=1",
+                    "Include_launcher=0"
+                ) -Wait -PassThru
+            
+            if ($process.ExitCode -ne 0) {
+                throw "Python installer failed with exit code $($process.ExitCode)"
             }
             
-            # 2. Refresh PATH and locate Python executable
-            $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
-                        [Environment]::GetEnvironmentVariable("Path", "User")
+            $pythonExe = Join-Path $pythonHome "python.exe"
             
-            $pythonExe = $null
-            
-            $pythonCandidates = @(
-                "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
-                "$env:ProgramFiles\Python312\python.exe"
-            )
-            
-            foreach ($candidate in $pythonCandidates) {
-                if (Test-Path $candidate) {
-                    $pythonExe = $candidate
-                    break
-                }
-            }
-            
-            if (-not $pythonExe) {
-                $cmd = Get-Command python -ErrorAction SilentlyContinue
-                if ($cmd -and $cmd.Source -notlike "*WindowsApps*") {
-                    $pythonExe = $cmd.Source
-                }
-            }
-            
-            if (-not $pythonExe) {
-                $py = Get-Command py -ErrorAction SilentlyContinue
-                if ($py) {
-                    $pythonExe = ( & $py.Source -3.12 -c "import sys; print(sys.executable)" ).Trim()
-                }
-            }
-            
-            if (-not $pythonExe -or -not (Test-Path $pythonExe)) {
-                throw "Python executable not found. Install Python 3.12 and rerun."
+            if (-not (Test-Path $pythonExe)) {
+                throw "Python executable not found after installation."
             }
             
             & $pythonExe --version
@@ -233,22 +207,17 @@ stages:
                 throw "Python verification failed."
             }
             
-            # 3. Create isolated virtual environment
-            $installDir = Join-Path $env:AGENT_TEMPDIRECTORY "checkov"
+            # 2. Create virtual environment
             $venvDir = Join-Path $installDir "venv"
             $venvPython = Join-Path $venvDir "Scripts\python.exe"
             $checkovExe = Join-Path $venvDir "Scripts\checkov.exe"
             
-            New-Item -ItemType Directory -Force -Path $installDir | Out-Null
-            
-            if (-not (Test-Path $venvPython)) {
-                & $pythonExe -m venv $venvDir
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to create virtual environment."
-                }
+            & $pythonExe -m venv $venvDir
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to create virtual environment."
             }
             
-            # 4. Install Checkov
+            # 3. Install Checkov
             & $venvPython -m pip install --upgrade pip
             if ($LASTEXITCODE -ne 0) {
                 throw "pip upgrade failed."
@@ -259,25 +228,21 @@ stages:
                 throw "Checkov installation failed."
             }
             
-            # 5. Verify Checkov
+            # 4. Verify Checkov
             & $checkovExe --version
             if ($LASTEXITCODE -ne 0) {
                 throw "Checkov verification failed."
             }
             
-            # 6. Run Terraform scan
+            # 5. Scan Terraform code
             $scanDir = "$(Build.SourcesDirectory)"
             
             & $checkovExe -d $scanDir --framework terraform --output cli
-            $scanExitCode = $LASTEXITCODE
-            
-            if ($scanExitCode -ne 0) {
-                throw "Checkov reported failed checks or encountered an error. Review scan output."
+            if ($LASTEXITCODE -ne 0) {
+                throw "Checkov reported failed checks or encountered an error."
             }
             
             Write-Host "Checkov scan completed successfully."
-
-
   - stage: Plan
     displayName: Terraform Plan
     jobs:
