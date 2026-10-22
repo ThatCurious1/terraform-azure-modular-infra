@@ -163,62 +163,121 @@ stages:
             }
             
             Write-Host "tfsec scan completed successfully."
-
       - task: PowerShell@2
-        displayName: checkov
+        displayName: CheckOv
         inputs:
           targetType: 'inline'
           script: |
             $ErrorActionPreference = "Stop"
             
-            # Install Checkov in an isolated Python environment
+            # 1. Install Python using winget if missing
+            $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+            $pyCmd = Get-Command py -ErrorAction SilentlyContinue
+            
+            if (-not $pythonCmd -and -not $pyCmd) {
+                Write-Host "Python not found. Installing Python..."
+            
+                $winget = Get-Command winget -ErrorAction SilentlyContinue
+                if (-not $winget) {
+                    throw "WinGet is unavailable. Install Python 3 manually on the agent first."
+                }
+            
+                winget install --exact --id Python.Python.3.12 `
+                    --scope user --silent `
+                    --accept-package-agreements `
+                    --accept-source-agreements
+            
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Python installation failed."
+                }
+            }
+            
+            # 2. Refresh PATH and locate Python executable
+            $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" +
+                        [Environment]::GetEnvironmentVariable("Path", "User")
+            
+            $pythonExe = $null
+            
+            $pythonCandidates = @(
+                "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
+                "$env:ProgramFiles\Python312\python.exe"
+            )
+            
+            foreach ($candidate in $pythonCandidates) {
+                if (Test-Path $candidate) {
+                    $pythonExe = $candidate
+                    break
+                }
+            }
+            
+            if (-not $pythonExe) {
+                $cmd = Get-Command python -ErrorAction SilentlyContinue
+                if ($cmd -and $cmd.Source -notlike "*WindowsApps*") {
+                    $pythonExe = $cmd.Source
+                }
+            }
+            
+            if (-not $pythonExe) {
+                $py = Get-Command py -ErrorAction SilentlyContinue
+                if ($py) {
+                    $pythonExe = ( & $py.Source -3.12 -c "import sys; print(sys.executable)" ).Trim()
+                }
+            }
+            
+            if (-not $pythonExe -or -not (Test-Path $pythonExe)) {
+                throw "Python executable not found. Install Python 3.12 and rerun."
+            }
+            
+            & $pythonExe --version
+            if ($LASTEXITCODE -ne 0) {
+                throw "Python verification failed."
+            }
+            
+            # 3. Create isolated virtual environment
             $installDir = Join-Path $env:AGENT_TEMPDIRECTORY "checkov"
             $venvDir = Join-Path $installDir "venv"
-            $checkov = Join-Path $venvDir "Scripts\checkov.exe"
+            $venvPython = Join-Path $venvDir "Scripts\python.exe"
+            $checkovExe = Join-Path $venvDir "Scripts\checkov.exe"
             
             New-Item -ItemType Directory -Force -Path $installDir | Out-Null
             
-            # Verify Python
-            $python = Get-Command python -ErrorAction SilentlyContinue
-            if (-not $python) {
-                throw "Python is not installed or not available in PATH."
-            }
-            
-            # Create virtual environment
-            if (-not (Test-Path $checkov)) {
-                python -m venv $venvDir
+            if (-not (Test-Path $venvPython)) {
+                & $pythonExe -m venv $venvDir
                 if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to create Python virtual environment."
-                }
-            
-                & (Join-Path $venvDir "Scripts\python.exe") -m pip install --upgrade pip
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Failed to upgrade pip."
-                }
-            
-                & (Join-Path $venvDir "Scripts\python.exe") -m pip install checkov
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Checkov installation failed."
+                    throw "Failed to create virtual environment."
                 }
             }
             
-            # Verify installation
-            & $checkov --version
+            # 4. Install Checkov
+            & $venvPython -m pip install --upgrade pip
             if ($LASTEXITCODE -ne 0) {
-                throw "Checkov version check failed."
+                throw "pip upgrade failed."
             }
             
-            # Scan Terraform files in repository root
+            & $venvPython -m pip install checkov
+            if ($LASTEXITCODE -ne 0) {
+                throw "Checkov installation failed."
+            }
+            
+            # 5. Verify Checkov
+            & $checkovExe --version
+            if ($LASTEXITCODE -ne 0) {
+                throw "Checkov verification failed."
+            }
+            
+            # 6. Run Terraform scan
             $scanDir = "$(Build.SourcesDirectory)"
             
-            & $checkov -d $scanDir --framework terraform --output cli
+            & $checkovExe -d $scanDir --framework terraform --output cli
             $scanExitCode = $LASTEXITCODE
             
             if ($scanExitCode -ne 0) {
-                throw "Checkov reported failed checks or encountered a scan error. Review the output."
+                throw "Checkov reported failed checks or encountered an error. Review scan output."
             }
             
             Write-Host "Checkov scan completed successfully."
+
+
   - stage: Plan
     displayName: Terraform Plan
     jobs:
