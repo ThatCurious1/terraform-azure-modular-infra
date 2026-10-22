@@ -26,6 +26,11 @@ parameters:
   displayName: execute GITLeaks ?
   type: boolean
   default: true  
+  
+- name: trivy
+  displayName: execute trivy ?
+  type: boolean
+  default: true  
 
 variables:
 - ${{ if eq(parameters.env, 'dev')}}:
@@ -234,7 +239,63 @@ stages:
             }
             
             Write-Host "Gitleaks scan completed successfully."
-
+  - stage: trivy
+    displayName: trivy execution
+    condition: and(succeeded(),eq('${{ parameters.trivy}}', 'true'))
+    jobs: 
+    - job: trivy
+      displayName: trivy execution
+      steps:
+      - task: PowerShell@2
+        displayName: trivy
+        inputs:
+          targetType: 'inline'
+          script: |
+            $ErrorActionPreference = "Stop"
+            
+            # Install Trivy
+            $installDir = Join-Path $env:AGENT_TEMPDIRECTORY "trivy"
+            New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+            
+            $release = Invoke-RestMethod `
+                -Uri "https://api.github.com/repos/aquasecurity/trivy/releases/latest"
+            
+            $asset = $release.assets |
+                Where-Object { $_.name -match "windows-64bit\.zip$" } |
+                Select-Object -First 1
+            
+            if (-not $asset) {
+                throw "Trivy Windows 64-bit release not found."
+            }
+            
+            $zipPath = Join-Path $installDir "trivy.zip"
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
+            Expand-Archive -Path $zipPath -DestinationPath $installDir -Force
+            
+            $trivy = Join-Path $installDir "trivy.exe"
+            
+            if (-not (Test-Path $trivy)) {
+                throw "trivy.exe not found after extraction."
+            }
+            
+            # Verify
+            & $trivy --version
+            if ($LASTEXITCODE -ne 0) {
+                throw "Trivy installation verification failed."
+            }
+            
+            # Scan Terraform / IaC configuration
+            $scanDir = "$(Build.SourcesDirectory)"
+            $report = Join-Path $installDir "trivy-report.json"
+            
+            & $trivy config --format json --output $report $scanDir
+            $scanExitCode = $LASTEXITCODE
+            
+            if ($scanExitCode -ne 0) {
+                throw "Trivy scan failed. Check logs and report."
+            }
+            
+            Write-Host "Trivy scan completed. Report: $report"
   - stage: Plan
     displayName: Terraform Plan
     jobs:
