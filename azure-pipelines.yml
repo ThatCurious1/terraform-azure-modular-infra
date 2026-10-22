@@ -60,25 +60,51 @@ stages:
         inputs:
           targetType: 'inline'
           script: |
-            # Install TFLint using WinGet
-            winget install --exact --id TerraformLinters.tflint --silent --accept-package-agreements --accept-source-agreements
+            $ErrorActionPreference = "Stop"
             
-            # Verify installation
-            tflint --version
+            # Install TFLint in agent's temporary directory
+            $installDir = "$(Agent.TempDirectory)\tflint"
+            $zipPath = "$installDir\tflint.zip"
             
-            # Initialize plugins
-            tflint --init
+            New-Item -ItemType Directory -Force -Path $installDir | Out-Null
             
-            # Run TFLint scan
-            tflint --format compact
+            # Download latest Windows AMD64 release
+            $release = Invoke-RestMethod `
+              -Uri "https://api.github.com/repos/terraform-linters/tflint/releases/latest"
             
-            # Check exit code
-            if ($LASTEXITCODE -ne 0) {
-                Write-Error "TFLint scan failed or found issues."
-                exit 1
+            $asset = $release.assets |
+              Where-Object { $_.name -match "windows_amd64\.zip$" } |
+              Select-Object -First 1
+            
+            if (-not $asset) {
+                throw "Could not find TFLint Windows AMD64 release."
             }
-            else {
-                Write-Host "TFLint scan completed successfully."
+            
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
+            
+            Expand-Archive -Path $zipPath -DestinationPath $installDir -Force
+            
+            $tflint = Join-Path $installDir "tflint.exe"
+            
+            if (-not (Test-Path $tflint)) {
+                throw "tflint.exe was not found after extraction."
+            }
+            
+            # Verify
+            & $tflint --version
+            if ($LASTEXITCODE -ne 0) {
+                throw "TFLint version check failed."
+            }
+            
+            # Initialize and scan
+            & $tflint --init
+            if ($LASTEXITCODE -ne 0) {
+                throw "TFLint plugin initialization failed."
+            }
+            
+            & $tflint --format compact
+            if ($LASTEXITCODE -ne 0) {
+                throw "TFLint scan failed or found issues."
             }
   - stage: Plan
     displayName: Terraform Plan
