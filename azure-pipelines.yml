@@ -228,21 +228,26 @@ stages:
                 throw "Checkov installation failed."
             }
             
-            # 4. Verify Checkov
-            & $checkovExe --version
+
+            # 4. Verify Checkov installation
+            & $venvPython -m checkov --version
+
             if ($LASTEXITCODE -ne 0) {
                 throw "Checkov verification failed."
             }
-            
-            # 5. Scan Terraform code
+
+            # 5. Run Terraform scan
             $scanDir = "$(Build.SourcesDirectory)"
-            
-            & $checkovExe -d $scanDir --framework terraform --output cli
-            if ($LASTEXITCODE -ne 0) {
-                throw "Checkov reported failed checks or encountered an error."
+
+            & $venvPython -m checkov -d $scanDir --framework terraform --output cli
+            $scanExitCode = $LASTEXITCODE
+
+            if ($scanExitCode -ne 0) {
+                throw "Checkov reported failed checks or encountered an error. Review scan output."
             }
-            
+
             Write-Host "Checkov scan completed successfully."
+
   - stage: Plan
     displayName: Terraform Plan
     jobs:
