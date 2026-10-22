@@ -5,7 +5,7 @@ module "azurerm_resource_group" {
 }
 module "azurerm_virtual_network" {
   depends_on = [module.azurerm_resource_group]
-  source     = "../../Module/Azurerm_Virtual _Network"
+  source     = "../../Module/Azurerm_Virtual_Network"
   vnet       = var.vnet
 
 }
