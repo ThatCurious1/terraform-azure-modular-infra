@@ -17,6 +17,16 @@ parameters:
   type: boolean
   default: true
 
+- name: TFSec
+  displayName: execute TFSec ?
+  type: boolean
+  default: true
+
+- name: GITLeaks
+  displayName: execute GITLeaks ?
+  type: boolean
+  default: true  
+
 variables:
 - ${{ if eq(parameters.env, 'dev')}}:
   - group: VG-dev
@@ -107,7 +117,13 @@ stages:
             if ($LASTEXITCODE -ne 0) {
                 throw "TFLint scan failed or found issues."
             }
-
+  - stage: TFSec
+    displayName: TFSec
+    condition: and(succeeded(),eq('${{ parameters.TFSec}}', 'true'))
+    jobs: 
+    - job: TFSec
+      displayName: TFSec execution
+      steps:
       - task: PowerShell@2
         displayName: TFSec
         inputs:
@@ -163,90 +179,61 @@ stages:
             }
             
             Write-Host "tfsec scan completed successfully."
+  - stage: GITLeaks
+    displayName: GITLeaks execution
+    condition: and(succeeded(),eq('${{ parameters.GITLeaks}}', 'true'))
+    jobs: 
+    - job: GITLeaks
+      displayName: GITLeaks execution
+      steps:
       - task: PowerShell@2
-        displayName: Checkov
         inputs:
           targetType: 'inline'
           script: |
             $ErrorActionPreference = "Stop"
             
-            # 1. Download and install Python 3.12
-            $installDir = Join-Path $env:AGENT_TEMPDIRECTORY "checkov-setup"
+            # Install Gitleaks
+            $installDir = Join-Path $env:AGENT_TEMPDIRECTORY "gitleaks"
             New-Item -ItemType Directory -Force -Path $installDir | Out-Null
             
-            $installer = Join-Path $installDir "python-3.12-installer.exe"
-            $pythonUrl = "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe"
+            $release = Invoke-RestMethod `
+                -Uri "https://api.github.com/repos/gitleaks/gitleaks/releases/latest"
             
-            Invoke-WebRequest -Uri $pythonUrl -OutFile $installer
+            $asset = $release.assets |
+                Where-Object { $_.name -match "windows_x64\.zip$" } |
+                Select-Object -First 1
             
-            # Install Python for the current Windows user
-            $pythonHome = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312"
-            
-            $process = Start-Process -FilePath $installer `
-                -ArgumentList @(
-                    "/quiet",
-                    "InstallAllUsers=0",
-                    "TargetDir=$pythonHome",
-                    "PrependPath=1",
-                    "Include_pip=1",
-                    "Include_launcher=0"
-                ) -Wait -PassThru
-            
-            if ($process.ExitCode -ne 0) {
-                throw "Python installer failed with exit code $($process.ExitCode)"
+            if (-not $asset) {
+                throw "Gitleaks Windows x64 release not found."
             }
             
-            $pythonExe = Join-Path $pythonHome "python.exe"
+            $zipPath = Join-Path $installDir "gitleaks.zip"
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
+            Expand-Archive -Path $zipPath -DestinationPath $installDir -Force
             
-            if (-not (Test-Path $pythonExe)) {
-                throw "Python executable not found after installation."
+            $gitleaks = Join-Path $installDir "gitleaks.exe"
+            
+            if (-not (Test-Path $gitleaks)) {
+                throw "gitleaks.exe not found after extraction."
             }
             
-            & $pythonExe --version
+            # Verify
+            & $gitleaks version
             if ($LASTEXITCODE -ne 0) {
-                throw "Python verification failed."
+                throw "Gitleaks installation verification failed."
             }
             
-            # 2. Create virtual environment
-            $venvDir = Join-Path $installDir "venv"
-            $venvPython = Join-Path $venvDir "Scripts\python.exe"
-            $checkovExe = Join-Path $venvDir "Scripts\checkov.exe"
+            # Scan Git repository
+            $repoDir = "$(Build.SourcesDirectory)"
             
-            & $pythonExe -m venv $venvDir
+            & $gitleaks git $repoDir --redact --report-format json `
+                --report-path (Join-Path $installDir "gitleaks-report.json")
+            
             if ($LASTEXITCODE -ne 0) {
-                throw "Failed to create virtual environment."
+                throw "Gitleaks found secrets or the scan failed. Review the report."
             }
             
-            # 3. Install Checkov
-            & $venvPython -m pip install --upgrade pip
-            if ($LASTEXITCODE -ne 0) {
-                throw "pip upgrade failed."
-            }
-            
-            & $venvPython -m pip install checkov
-            if ($LASTEXITCODE -ne 0) {
-                throw "Checkov installation failed."
-            }
-            
-
-            # 4. Verify Checkov installation
-            & $venvPython -m checkov --version
-
-            if ($LASTEXITCODE -ne 0) {
-                throw "Checkov verification failed."
-            }
-
-            # 5. Run Terraform scan
-            $scanDir = "$(Build.SourcesDirectory)"
-
-            & $venvPython -m checkov -d $scanDir --framework terraform --output cli
-            $scanExitCode = $LASTEXITCODE
-
-            if ($scanExitCode -ne 0) {
-                throw "Checkov reported failed checks or encountered an error. Review scan output."
-            }
-
-            Write-Host "Checkov scan completed successfully."
+            Write-Host "Gitleaks scan completed successfully."
 
   - stage: Plan
     displayName: Terraform Plan
