@@ -106,6 +106,61 @@ stages:
             if ($LASTEXITCODE -ne 0) {
                 throw "TFLint scan failed or found issues."
             }
+
+      - task: PowerShell@2
+        inputs:
+          targetType: 'inline'
+          script: |
+            $ErrorActionPreference = "Stop"
+            
+            # Install tfsec in Azure DevOps agent's temp directory
+            $installDir = Join-Path $env:AGENT_TEMPDIRECTORY "tfsec"
+            $zipPath = Join-Path $installDir "tfsec.zip"
+            
+            New-Item -ItemType Directory -Path $installDir -Force | Out-Null
+            
+            # Get latest official tfsec Windows release
+            $release = Invoke-RestMethod `
+                -Uri "https://api.github.com/repos/aquasecurity/tfsec/releases/latest"
+            
+            $asset = $release.assets |
+                Where-Object { $_.name -eq "tfsec-windows-amd64.exe" } |
+                Select-Object -First 1
+            
+            if (-not $asset) {
+                $asset = $release.assets |
+                    Where-Object { $_.name -match "tfsec.*windows.*amd64.*\.exe$" -and $_.name -notmatch "\.sig$" } |
+                    Select-Object -First 1
+            }
+            
+            if (-not $asset) {
+                throw "Could not find the official tfsec Windows AMD64 executable."
+            }
+            
+            $tfsec = Join-Path $installDir "tfsec.exe"
+            
+            Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tfsec
+            
+            if (-not (Test-Path $tfsec)) {
+                throw "tfsec.exe download failed."
+            }
+            
+            # Verify installation
+            & $tfsec --version
+            if ($LASTEXITCODE -ne 0) {
+                throw "tfsec version check failed."
+            }
+            
+            # Run scan against repository Terraform files
+            $scanDir = "$(Build.SourcesDirectory)"
+            
+            & $tfsec $scanDir --format lovely
+            
+            if ($LASTEXITCODE -ne 0) {
+                throw "tfsec found security issues or the scan failed."
+            }
+            
+            Write-Host "tfsec scan completed successfully."
   - stage: Plan
     displayName: Terraform Plan
     jobs:
