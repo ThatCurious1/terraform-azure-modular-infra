@@ -163,6 +163,62 @@ stages:
             }
             
             Write-Host "tfsec scan completed successfully."
+
+      - task: PowerShell@2
+        displayName: checkov
+        inputs:
+          targetType: 'inline'
+          script: |
+            $ErrorActionPreference = "Stop"
+            
+            # Install Checkov in an isolated Python environment
+            $installDir = Join-Path $env:AGENT_TEMPDIRECTORY "checkov"
+            $venvDir = Join-Path $installDir "venv"
+            $checkov = Join-Path $venvDir "Scripts\checkov.exe"
+            
+            New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+            
+            # Verify Python
+            $python = Get-Command python -ErrorAction SilentlyContinue
+            if (-not $python) {
+                throw "Python is not installed or not available in PATH."
+            }
+            
+            # Create virtual environment
+            if (-not (Test-Path $checkov)) {
+                python -m venv $venvDir
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Failed to create Python virtual environment."
+                }
+            
+                & (Join-Path $venvDir "Scripts\python.exe") -m pip install --upgrade pip
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Failed to upgrade pip."
+                }
+            
+                & (Join-Path $venvDir "Scripts\python.exe") -m pip install checkov
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Checkov installation failed."
+                }
+            }
+            
+            # Verify installation
+            & $checkov --version
+            if ($LASTEXITCODE -ne 0) {
+                throw "Checkov version check failed."
+            }
+            
+            # Scan Terraform files in repository root
+            $scanDir = "$(Build.SourcesDirectory)"
+            
+            & $checkov -d $scanDir --framework terraform --output cli
+            $scanExitCode = $LASTEXITCODE
+            
+            if ($scanExitCode -ne 0) {
+                throw "Checkov reported failed checks or encountered a scan error. Review the output."
+            }
+            
+            Write-Host "Checkov scan completed successfully."
   - stage: Plan
     displayName: Terraform Plan
     jobs:
