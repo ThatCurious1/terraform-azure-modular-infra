@@ -1,1 +1,13 @@
+parameters:
+- name: Environment
+  type: string
 
+jobs:
+- job: TerraformValidate
+  displayName: Terraform Init and Validate
+  
+  steps:
+
+  - template: ../steps/init.yml
+    parameters:
+      wd: '$(Build.SourcesDirectory)/landing_zone_practice/environments/${{ parameters.environment }}'
