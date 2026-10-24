@@ -7,7 +7,7 @@ parameters:
 
 - name: serviceConnection
   type: string
-  default: 'Practice_service_connection'
+  # default: 'Practice_service_connection'
 
 steps:
 - task: TerraformTask@5
