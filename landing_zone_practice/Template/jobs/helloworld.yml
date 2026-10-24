@@ -10,4 +10,9 @@ jobs:
 
   - template: ../steps/init.yml
     parameters:
-      wd: '$(Build.SourcesDirectory)/landing_zone_practice/environments/${{ parameters.environment }}'
+      wd: '$(Build.SourcesDirectory)/landing_zone_practice/environments/${{ parameters.Environment }}'
+  - task: TerraformTask@5
+    inputs:
+      provider: 'azurerm'
+      command: 'validate'
+      workingDirectory: '$(Build.SourcesDirectory)/landing_zone_practice/environments/${{ parameters.Environment }}'
