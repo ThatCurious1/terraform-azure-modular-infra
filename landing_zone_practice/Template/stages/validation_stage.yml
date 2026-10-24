@@ -1,0 +1,25 @@
+parameters:
+- name: Environment
+  type: string
+
+- name: wd
+  type: string
+  
+stages:
+- stage: validation_${{ parameters.Environment}}
+  displayName: Terraform Init and validation_${{ parameters.Environment}}
+
+  jobs:
+  - job: validation
+    displayName: Terraform Init and Validate_${{ parameters.Environment}}
+    steps:
+    - template: ../steps/init.yml
+      parameters:
+          wd: $(System.DefaultWorkingDirectory)/landing_zone_practice/Template/steps
+          key: ${{parameters.Environment}}.tfstate
+    
+    - task: TerraformTask@5
+      inputs:
+        provider: 'azurerm'
+        command: 'validate'
+        workingDirectory: '${{parameters.wd}}'
