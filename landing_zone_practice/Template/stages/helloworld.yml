@@ -1,1 +1,11 @@
+parameters:
+- name: Environment
+  type: string
 
+stages:
+- stage: Validation_${{ parameters.Environment}}
+  displayName: Terraform Validation ${{ parameters.Environment}}
+
+- template:  ../jobs/helloworld.yml
+  parameters:
+      Environment: dev
