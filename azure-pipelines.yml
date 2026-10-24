@@ -1,6 +1,6 @@
-trigger:
-- main
-- feature/*
+trigger: none
+# - main
+# - feature/*
 
 pool: Default
 
