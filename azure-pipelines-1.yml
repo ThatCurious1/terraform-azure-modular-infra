@@ -1,0 +1,29 @@
+trigger: none
+
+pool: Default
+
+parameters:
+- name: Environment
+  type: string
+  default: dev
+  values:
+  - dev
+  - prod
+
+
+variables: 
+- ${{ if eq(parameters.environment, 'dev')}}:
+  - group: VG-dev
+- ${{ if eq(parameters.environment, 'prod')}}:
+  - group: VG-prod
+
+stages:
+  - template: ../Template/stages/validation_stage.yml
+    parameters:
+      Environment: ${{ parameters.Environment }}
+      wd: $(System.DefaultWorkingDirectory)/landing_zone_practice/Environment/${{ parameters.Environment }}
+
+  - template: ../Template/stages/plan_stage.yml
+    parameters:
+      Environment: ${{ parameters.Environment }}
+      wd: $(System.DefaultWorkingDirectory)/landing_zone_practice/Environment/${{ parameters.Environment }}
