@@ -4,22 +4,27 @@ parameters:
 
 - name: wd
   type: string
-  
-stages:
-- stage: validation_${{ parameters.Environment}}
-  displayName: Terraform Init and validation_${{ parameters.Environment}}
 
+- name: serviceConnection
+  type: string
+  default: 'Practice_service_connection'
+
+stages:
+- stage: validation_${{ parameters.Environment }}
+  displayName: Terraform Init and Validate ${{ parameters.Environment }}
   jobs:
   - job: validation
-    displayName: Terraform Init and Validate_${{ parameters.Environment}}
+    displayName: Terraform Init and Validate ${{ parameters.Environment }}
     steps:
     - template: ../steps/init.yml
       parameters:
-          wd: $(System.DefaultWorkingDirectory)/landing_zone_practice/Environment/${{ parameters.Environment }}
-          key: ${{parameters.Environment}}.tfstate
-    
+        wd: ${{ parameters.wd }}
+        key: ${{ parameters.Environment }}.tfstate
+        serviceConnection: ${{ parameters.serviceConnection }}
+
     - task: TerraformTask@5
+      displayName: Terraform Validate
       inputs:
         provider: 'azurerm'
         command: 'validate'
-        workingDirectory: '${{parameters.wd}}'
+        workingDirectory: '${{ parameters.wd }}'

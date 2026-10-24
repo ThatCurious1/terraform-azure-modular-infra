@@ -3,7 +3,11 @@ parameters:
   type: string
 
 - name: wd
-  type: string 
+  type: string
+
+- name: serviceConnection
+  type: string
+  default: 'Practice_service_connection'
 
 stages:
 - stage: Plan_${{ parameters.Environment }}
@@ -13,13 +17,15 @@ stages:
     displayName: Terraform Init and Plan ${{ parameters.Environment }}
     steps:
     - template: ../steps/init.yml
-      parameters: 
-        wd: $(System.DefaultWorkingDirectory)/landing_zone_practice/Environment/${{ parameters.Environment }}
-        key: ${{parameters.Environment}}.tfstate
+      parameters:
+        wd: ${{ parameters.wd }}
+        key: ${{ parameters.Environment }}.tfstate
+        serviceConnection: ${{ parameters.serviceConnection }}
 
     - task: TerraformTask@5
+      displayName: Terraform Plan
       inputs:
         provider: 'azurerm'
         command: 'plan'
         workingDirectory: '${{ parameters.wd }}'
-        environmentServiceNameAzureRM: 'Practice_service_connection'
+        environmentServiceNameAzureRM: '${{ parameters.serviceConnection }}'
