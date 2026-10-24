@@ -15,7 +15,7 @@ stages:
     steps:
     - template: ../steps/init.yml
       parameters:
-          wd: $(System.DefaultWorkingDirectory)/landing_zone_practice/Template/steps
+          wd: $(System.DefaultWorkingDirectory)/landing_zone_practice/Environment/${{ parameters.Environment }}
           key: ${{parameters.Environment}}.tfstate
     
     - task: TerraformTask@5
