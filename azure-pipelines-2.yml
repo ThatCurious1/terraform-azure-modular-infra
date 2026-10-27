@@ -25,7 +25,7 @@ resources:
       endpoint: github.com_ThatCurious1
       type: github
       name: ThatCurious1/Templates
-      ref: refs/tags/V1.1
+      ref: refs/tags/V1.2
 stages:
 - template: validate.yml@narayan
   parameters:
