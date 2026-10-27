@@ -29,14 +29,14 @@ resources:
 stages:
 - template: validate.yml@narayan
   parameters:
-    wd: ${{ parameters.wd}}
+    wd: $(wd)
     env: ${{ parameters.env }}
-    sc: ${{ parameters.sc}}
+    sc: $(sc)
 - template: plan.yml@narayan
   parameters:
-    wd: ${{ parameters.wd}}
+    wd: $(wd)
     env: ${{ parameters.env }}
-    sc: ${{ parameters.sc}}
+    sc: $(sc)
 - template: apply.yml@narayan
   parameters:
       wd: $(wd)
