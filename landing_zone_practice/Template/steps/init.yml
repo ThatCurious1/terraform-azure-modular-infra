@@ -10,6 +10,10 @@ parameters:
   # default: 'Practice_service_connection'
 
 steps:
+- task: TerraformInstaller@1
+  displayName: Install Terraform
+  inputs:
+    terraformVersion: 'latest'
 - task: TerraformTask@5
   displayName: Terraform Init
   inputs:
