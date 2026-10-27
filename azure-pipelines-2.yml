@@ -1,0 +1,43 @@
+trigger: none
+pool:
+ vmImage: ubuntu-latest
+parameters: 
+- name: env
+  displayName: Select Environment
+  default: dev
+  values:
+    - dev
+    - prod
+
+
+variables: 
+- ${{ if eq(parameters.env, 'dev')}}:
+  - group: VG-dev
+- ${{ if eq(parameters.env, 'prod')}}:
+  - group: VG-prod
+- name: wd
+  value:  $(System.DefaultWorkingDirectory)/landing_zone_practice/Environment/${{ parameters.env}}
+- name: sc
+  value: Practice_service_connection
+resources:
+  repositories:
+    - repository: narayan
+      type: github
+      name: ThatCurious1/Templates
+      ref: refs/head/main
+stages:
+- template: validate.yml@narayan
+  parameters:
+    wd: ${{ parameters.wd}}
+    env: ${{ parameters.env }}
+    sc: ${{ parameters.sc}}
+- template: plan.yml@narayan
+  parameters:
+    wd: ${{ parameters.wd}}
+    env: ${{ parameters.env }}
+    sc: ${{ parameters.sc}}
+- template: apply.yml@narayan
+  parameters:
+      wd: $(wd)
+      env: ${{ parameters.env }}
+      sc: $(sc)
