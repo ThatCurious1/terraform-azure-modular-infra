@@ -22,6 +22,7 @@ variables:
 resources:
   repositories:
     - repository: narayan
+      endpoint: github.com_ThatCurious1
       type: github
       name: ThatCurious1/Templates
       ref: refs/head/main
