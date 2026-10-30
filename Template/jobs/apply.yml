@@ -1,0 +1,28 @@
+parameters:
+- name: Environment
+  type: string
+
+- name: wd
+  type: string
+
+- name: serviceConnection
+  type: string
+
+jobs:
+- job: Apply
+  displayName: Apply-${{ parameters.Environment }}
+  steps:
+  - template: ../steps/init.yml
+    parameters:
+      wd: ${{ parameters.wd }}
+      key: ${{ parameters.Environment }}.tfstate
+      serviceConnection: ${{ parameters.serviceConnection }}
+
+  - task: TerraformTask@5
+    displayName: Terraform Apply
+    inputs:
+      provider: 'azurerm'
+      command: 'apply'
+      workingDirectory: '${{ parameters.wd }}'
+      environmentServiceNameAzureRM: '${{ parameters.serviceConnection }}'
+

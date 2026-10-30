@@ -16,7 +16,7 @@ variables:
 - ${{ if eq(parameters.env, 'prod')}}:
   - group: VG-prod
 - name: wd
-  value:  $(System.DefaultWorkingDirectory)/landing_zone_practice/Environment/${{ parameters.env}}
+  value:  $(System.DefaultWorkingDirectory)/Environment/${{ parameters.env}}
 - name: sc
   value: Practice_service_connection
 resources:

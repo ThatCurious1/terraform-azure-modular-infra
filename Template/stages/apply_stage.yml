@@ -1,0 +1,21 @@
+parameters:
+- name: Environment
+  type: string
+
+- name: wd
+  type: string
+
+- name: serviceConnection
+  type: string
+  # default: 'Practice_service_connection'
+
+stages:
+- stage: Apply_${{ parameters.Environment }}
+  displayName: Terraform Apply ${{ parameters.Environment }}
+  jobs:
+  - template: ../jobs/apply.yml
+    parameters:
+      Environment: ${{ parameters.Environment }}
+      wd: ${{ parameters.wd }}
+      serviceConnection: ${{ parameters.serviceConnection }}
+

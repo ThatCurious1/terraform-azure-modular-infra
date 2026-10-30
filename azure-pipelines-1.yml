@@ -19,14 +19,14 @@ variables:
   - group: VG-prod
 
 stages:
-  - template: /landing_zone_practice/Template/stages/validation_stage.yml
+  - template: /Template/stages/validation_stage.yml
     parameters:
       Environment: ${{ parameters.Environment }}
-      wd: $(System.DefaultWorkingDirectory)/landing_zone_practice/Environment/${{ parameters.Environment }}
+      wd: $(System.DefaultWorkingDirectory)/Environment/${{ parameters.Environment }}
       serviceConnection: 'Practice_service_connection'
 
-  - template: /landing_zone_practice/Template/stages/plan_stage.yml
+  - template: /Template/stages/plan_stage.yml
     parameters:
       Environment: ${{ parameters.Environment }}
-      wd: $(System.DefaultWorkingDirectory)/landing_zone_practice/Environment/${{ parameters.Environment }}
+      wd: $(System.DefaultWorkingDirectory)/Environment/${{ parameters.Environment }}
       serviceConnection: 'Practice_service_connection'

@@ -1,0 +1,30 @@
+parameters:
+- name: Environment
+  type: string
+
+- name: notifyUsers
+  type: string
+  default: ''
+
+stages:
+- stage: Approval_${{ parameters.Environment }}
+  displayName: Manual Approval - ${{ parameters.Environment }}
+  jobs:
+  - job: WaitForApproval
+    displayName: Waiting for Manual Approval
+    pool: server
+    steps:
+    - task: ManualValidation@0
+      displayName: Manual Approval Gate
+      timeoutInMinutes: 60
+      inputs:
+        notifyUsers: '${{ parameters.notifyUsers }}'
+        instructions: |
+          Please review the Terraform Plan output carefully.
+          
+          Environment  : ${{ parameters.Environment }}
+          
+          Approve to proceed with Terraform Apply.
+          Reject to cancel the deployment.
+        onTimeout: 'resume'
+
