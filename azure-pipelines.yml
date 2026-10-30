@@ -2,7 +2,8 @@ trigger:
 - main
 - feature/*
 
-pool: Default
+pool:
+ vmImage: ubuntu-latest
 
 parameters:
 - name: env
