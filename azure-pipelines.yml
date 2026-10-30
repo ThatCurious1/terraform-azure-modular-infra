@@ -66,6 +66,7 @@ stages:
           workingDirectory: '$(wd)'
   - stage: TFLint
     displayName: TFLint execution
+    dependsOn: []
     condition: and(succeeded(),eq('${{ parameters.TFLint}}', 'true'))
     jobs: 
     - job: TFLint
@@ -124,6 +125,7 @@ stages:
             }
   - stage: TFSec
     displayName: TFSec
+    dependsOn: []
     condition: and(succeeded(),eq('${{ parameters.TFSec}}', 'true'))
     jobs: 
     - job: TFSec
@@ -186,6 +188,7 @@ stages:
             Write-Host "tfsec scan completed successfully."
   - stage: GITLeaks
     displayName: GITLeaks execution
+    dependsOn: []
     condition: and(succeeded(),eq('${{ parameters.GITLeaks}}', 'true'))
     jobs: 
     - job: GITLeaks
@@ -241,6 +244,7 @@ stages:
             Write-Host "Gitleaks scan completed successfully."
   - stage: trivy
     displayName: trivy execution
+    dependsOn: []
     condition: and(succeeded(),eq('${{ parameters.trivy}}', 'true'))
     jobs: 
     - job: trivy
